@@ -11,11 +11,11 @@ services:
     image: ghcr.io/aldoexpert/linux-wireguard:${APP_VERSION:-latest}
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8200}:8200"
+      - "${APP_PORT:-8220}:8220"
     volumes:
       - ./data:/app/data
     environment:
-      LXWG_PORT: "8200"
+      LXWG_PORT: "8220"
       LXWG_DB_PATH: /app/data
       # /etc/wireguard doesn't exist in this image (no wireguard-tools, no
       # local wg0 device -- see the Linux Server Integration section of

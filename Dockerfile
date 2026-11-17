@@ -44,10 +44,10 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /out/linux-wireguard ./linux-wireguard
 
-ENV LXWG_PORT=8200
+ENV LXWG_PORT=8220
 ENV LXWG_DB_PATH=/app/data
-EXPOSE 8200
+EXPOSE 8220
 
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8200/system/misc/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8220/system/misc/health || exit 1
 
 ENTRYPOINT ["./linux-wireguard"]

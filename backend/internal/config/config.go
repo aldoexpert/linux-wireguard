@@ -58,7 +58,7 @@ func Load() *App {
 	cfg := &App{}
 
 	flag.StringVar(&cfg.Name, "app-name", lookupEnvOrString("LXWG_APP_NAME", "Linux WireGuard Manager"), "Application name")
-	flag.IntVar(&cfg.Port, "port", lookupEnvOrInt("LXWG_PORT", 8200), "HTTP port the backend listens on")
+	flag.IntVar(&cfg.Port, "port", lookupEnvOrInt("LXWG_PORT", 8220), "HTTP port the backend listens on")
 	flag.BoolVar(&cfg.Debug, "debug", lookupEnvOrBool("LXWG_DEBUG", false), "Enable verbose/debug logging")
 	flag.StringVar(&cfg.BasePath, "base-path", lookupEnvOrString("LXWG_BASE_PATH", ""), "Mount the API under a sub-path, e.g. /api")
 

@@ -33,7 +33,7 @@
 
 - Docker ≥ 24.x
 - Docker Compose v2 (`docker compose`, not the old `docker-compose`)
-- One free port on the server (default `8200`) — serves **both** the UI and the API
+- One free port on the server (default `8220`) — serves **both** the UI and the API
 
 > **No build needed.** The image is pre-built on GitHub Container Registry
 > for `linux/amd64` and `linux/arm64`: `ghcr.io/aldoexpert/linux-wireguard`.
@@ -91,7 +91,7 @@ Docker pulls `ghcr.io/aldoexpert/linux-wireguard:latest` — no local build.
 **5. Open the app**
 
 ```
-http://<SERVER-IP>:8200
+http://<SERVER-IP>:8220
 ```
 
 Log in with:
@@ -140,7 +140,7 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 
 | Port | Purpose |
 |---|---|
-| `8200` | UI + API, single port (set via `APP_PORT` in `.env`) |
+| `8220` | UI + API, single port (set via `APP_PORT` in `.env`) |
 | `51820/udp` | The WireGuard tunnel itself, on whichever host actually runs `wg0` (not this container, unless you still rely on a local interface — see the commented `network_mode: host` block in `docker-compose.yaml`) |
 
 ---
@@ -242,7 +242,7 @@ Every variable uses the `LXWG_` prefix. The full list is in
 | `LXWG_CONFIG_FILE_PATH` | `/app/data/wg0.conf` (Docker) | Where the locally-written `wg0.conf` is saved. Defaults into the persisted data volume, since the image has no `/etc/wireguard` (no `wireguard-tools`, no local wg0 device -- this project targets a remote Linux server over SSH). |
 | `LXWG_SMTP_*`, `LXWG_SENDGRID_API_KEY` | *(empty)* | Send client configs by email. |
 | `LXWG_TELEGRAM_TOKEN` | *(empty)* | Send client configs via a Telegram bot. |
-| `APP_PORT` | `8200` | Host port published by `docker-compose.yaml` (container always listens on `8200` internally). |
+| `APP_PORT` | `8220` | Host port published by `docker-compose.yaml` (container always listens on `8220` internally). |
 
 ---
 
@@ -262,11 +262,11 @@ LXWG_DISABLE_LOGIN=true LXWG_CONFIG_FILE_PATH=/tmp/wg0.conf go run ./cmd/api
 ```bash
 cd frontend
 npm install --legacy-peer-deps
-npm run dev          # dev server on :5173, proxies API calls to :8200 (see vite.config.js)
+npm run dev          # dev server on :5173, proxies API calls to :8220 (see vite.config.js)
 npm run build         # production build into frontend/www/
 ```
 
-This two-process setup (`:5173` + `:8200`) is for local development only. In
+This two-process setup (`:5173` + `:8220`) is for local development only. In
 production (Docker), `npm run build`'s output is copied into
 `backend/web/dist/` and embedded into the Go binary at compile time (see
 `Dockerfile` and `backend/web/embed.go`), so the shipped app is a single
@@ -277,7 +277,7 @@ To test that single-binary setup locally without Docker:
 
 ```bash
 cd backend && make build-frontend   # builds ../frontend and syncs into web/dist/
-go run ./cmd/api                    # now serving UI + API on :8200
+go run ./cmd/api                    # now serving UI + API on :8220
 ```
 
 ---
