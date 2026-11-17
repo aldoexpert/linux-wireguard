@@ -1,0 +1,174 @@
+<template>
+  <div class="page" data-name="linuxserver">
+    <div class="navbar">
+      <div class="navbar-bg"></div>
+      <div class="navbar-inner">
+        <div class="left"><a href="#" class="link icon-only panel-open" data-panel=".panel-left"><i class="icon f7-icons if-not-md">menu</i><i class="icon material-icons md-only">menu</i></a></div>
+        <div class="title">Linux Server Integration</div>
+      </div>
+    </div>
+    <div class="page-content">
+      ${loading ? $h`<div class="block text-align-center"><div class="preloader"></div></div>` : $h`
+        <div class="block block-strong">
+          <p class="mtwg-muted">
+            When enabled, applying the server configuration also pushes the WireGuard
+            interface and every enabled client (as a peer) to a remote Linux server
+            over SSH, instead of only writing the local wg0.conf.
+          </p>
+          <p class="mtwg-muted">
+            Authentication is always by SSH key -- paste the <strong>private</strong> key of a
+            dedicated, restricted Linux user (see README.md "Linux Server Integration" for how
+            to create one and grant it the exact sudo rights needed). The key is stored
+            server-side and never sent back to this page.
+          </p>
+        </div>
+
+        <form @submit="${handleSubmit}">
+          <div class="list no-hairlines-md">
+            <ul>
+              <li>
+                <div class="item-content">
+                  <div class="item-inner">
+                    <div class="item-title">Enabled</div>
+                    <div class="item-after">
+                      <label class="toggle">
+                        <input type="checkbox" checked=${form.enabled} @change="${(e) => { form.enabled = e.target.checked; }}" />
+                        <span class="toggle-icon"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="item-content item-input">
+                  <div class="item-inner">
+                    <div class="item-title item-label">Host / IP Address</div>
+                    <div class="item-input-wrap"><input type="text" placeholder="e.g. 103.172.204.59" value="${form.host}" @input="${(e) => { form.host = e.target.value; }}" /></div>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="item-content item-input">
+                  <div class="item-inner">
+                    <div class="item-title item-label">SSH Port</div>
+                    <div class="item-input-wrap"><input type="number" placeholder="22" value="${form.port}" @input="${(e) => { form.port = e.target.value; }}" /></div>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="item-content item-input">
+                  <div class="item-inner">
+                    <div class="item-title item-label">Username</div>
+                    <div class="item-input-wrap"><input type="text" placeholder="wgmanager" value="${form.username}" @input="${(e) => { form.username = e.target.value; }}" /></div>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <div class="item-content item-input">
+                  <div class="item-inner">
+                    <div class="item-title item-label">SSH Private Key ${hasKey ? '(leave blank to keep the stored key)' : ''}</div>
+                    <div class="item-input-wrap">
+                      <textarea rows="6" placeholder="${hasKey ? '•••••••• (a key is already stored)' : '-----BEGIN OPENSSH PRIVATE KEY-----...'}" @input="${(e) => { form.private_key_pem = e.target.value; }}">${form.private_key_pem}</textarea>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <p class="mtwg-muted" style="padding:0 16px;">
+            The WireGuard interface name synced on that server (e.g. "wg0") comes from
+            each interface's own "Linux wg-quick interface name" field on the
+            Interfaces page, not from here -- one Linux server can host several
+            WireGuard interfaces.
+          </p>
+          <div class="block block-strong" style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="submit" class="button button-fill" ${saving ? 'disabled' : ''}>${saving ? 'Saving...' : 'Save Settings'}</button>
+            <button type="button" class="button button-outline" ${testing ? 'disabled' : ''} @click="${(e) => { e.preventDefault(); testConnection(); }}">${testing ? 'Testing...' : 'Test Connection'}</button>
+          </div>
+        </form>
+      `}
+    </div>
+  </div>
+</template>
+<script>
+import api, { ApiError } from '../js/api.js';
+import { notifySuccess, notifyError, errorMessage } from '../js/notify.js';
+
+export default (props, { $f7, $update }) => {
+  let loading = true;
+  let saving = false;
+  let testing = false;
+  let hasKey = false;
+  let form = {
+    enabled: false,
+    host: '',
+    port: '',
+    username: '',
+    private_key_pem: '',
+  };
+
+  const load = async () => {
+    loading = true;
+    $update();
+    try {
+      const res = await api.get('/wireguard/linuxserver/get');
+      const s = res.data;
+      hasKey = !!s.has_key;
+      form = {
+        enabled: !!s.enabled,
+        host: s.host || '',
+        port: s.port || '',
+        username: s.username || '',
+        private_key_pem: '',
+      };
+    } catch (err) {
+      notifyError($f7, errorMessage(err, ApiError, 'Failed to load the Linux Server settings'));
+    } finally {
+      loading = false;
+      $update();
+    }
+  };
+
+  const payload = () => ({
+    enabled: form.enabled,
+    host: form.host,
+    port: parseInt(form.port, 10) || 0,
+    username: form.username,
+    private_key_pem: form.private_key_pem,
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    saving = true;
+    $update();
+    try {
+      await api.post('/wireguard/linuxserver/update', payload());
+      notifySuccess($f7, 'Linux Server settings saved. Don\'t forget to "Apply Configuration" on the Server page to sync peers.');
+      await load();
+    } catch (err) {
+      notifyError($f7, errorMessage(err, ApiError, 'Failed to save the Linux Server settings'));
+    } finally {
+      saving = false;
+      $update();
+    }
+  };
+
+  const testConnection = async () => {
+    testing = true;
+    $update();
+    try {
+      const res = await api.post('/wireguard/linuxserver/test', payload());
+      notifySuccess($f7, `Connected successfully to "${res.data.identity}".`);
+    } catch (err) {
+      notifyError($f7, errorMessage(err, ApiError, 'Connection test failed'));
+    } finally {
+      testing = false;
+      $update();
+    }
+  };
+
+  load();
+
+  return $render;
+};
+</script>

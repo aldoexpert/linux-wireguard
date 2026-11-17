@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    # Tag published by CI on every push to main/master: "latest" (or a
+    # semver tag like "1.2.3" for a release build -- set APP_VERSION in
+    # .env to pin one). "dev" is NOT published; it's only a local build-arg
+    # label (see build.args below) for images you build yourself.
+    image: ghcr.io/aldoexpert/linux-wireguard:${APP_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8200}:8200"
+    volumes:
+      - ./data:/app/data
+    environment:
+      LXWG_PORT: "8200"
+      LXWG_DB_PATH: /app/data
+      # /etc/wireguard doesn't exist in this image (no wireguard-tools, no
+      # local wg0 device -- see the Linux Server Integration section of
+      # the README). Point the locally-written wg0.conf at the persisted
+      # data volume instead, which always exists and is writable.
+      LXWG_CONFIG_FILE_PATH: ${LXWG_CONFIG_FILE_PATH:-/app/data/wg0.conf}
+      LXWG_DISABLE_LOGIN: ${LXWG_DISABLE_LOGIN:-false}
+      LXWG_JWT_SECRET: ${LXWG_JWT_SECRET:?set a long random LXWG_JWT_SECRET in .env}
+      LXWG_CORS_ALLOWED_ORIGINS: ${LXWG_CORS_ALLOWED_ORIGINS:-*}
+      LXWG_USERNAME: ${LXWG_USERNAME:-admin}
+      LXWG_PASSWORD: ${LXWG_PASSWORD:-admin}
+      LXWG_ENDPOINT_ADDRESS: ${LXWG_ENDPOINT_ADDRESS:-}
+      LXWG_SERVER_INTERFACE_ADDRESSES: ${LXWG_SERVER_INTERFACE_ADDRESSES:-10.252.1.0/24}
+      LXWG_SERVER_LISTEN_PORT: ${LXWG_SERVER_LISTEN_PORT:-51820}
+      LXWG_SMTP_HOSTNAME: ${LXWG_SMTP_HOSTNAME:-}
+      LXWG_SMTP_PORT: ${LXWG_SMTP_PORT:-25}
+      LXWG_SMTP_USERNAME: ${LXWG_SMTP_USERNAME:-}
+      LXWG_SMTP_PASSWORD: ${LXWG_SMTP_PASSWORD:-}
+      LXWG_EMAIL_FROM_ADDRESS: ${LXWG_EMAIL_FROM_ADDRESS:-}
+      LXWG_TELEGRAM_TOKEN: ${LXWG_TELEGRAM_TOKEN:-}
+      LXWG_SUBNET_RANGES: ${LXWG_SUBNET_RANGES:-}
+    # Local WireGuard device status (wgctrl) needs access to the host's
+    # network namespace / netlink socket. Not required if you instead use
+    # the Linux Server Integration (SSH to a remote server) for device
+    # management. Uncomment if you still rely on a local wg0 interface:
+    # network_mode: host
+    # cap_add:
+    #   - NET_ADMIN
+  
