@@ -17,7 +17,7 @@
                   <div class="item-inner">
                     <div class="item-title item-label">Interface</div>
                     <div class="item-input-wrap">
-                      <select required value="${form.interface_id}" @change="${(e) => { form.interface_id = e.target.value; $update(); }}">
+                      <select required value="${form.interface_id}" @change="${(e) => { form.interface_id = e.target.value; $update(); if (!isEdit) suggestIP(); }}">
                         <option value="" disabled>Select an interface...</option>
                         ${interfaces.map((iface) => $h`<option value="${iface.id}" selected=${form.interface_id === iface.id}>${iface.name} (${iface.wg_name})</option>`)}
                       </select>
@@ -228,6 +228,11 @@ export default (props, { $f7, $update }) => {
         form.extra_allowed_ips = toCSV(res.data.extra_allowed_ips);
         form.use_server_dns = !!res.data.use_server_dns;
         form.enabled = !!res.data.enable_after_creation;
+        // Auto-fill the IP suggestion instead of making the user click
+        // "Suggest IP" by hand -- only possible here when there's exactly
+        // one interface to default to; with several, the @change handler
+        // on the interface select above does the same once one is picked.
+        if (form.interface_id) await suggestIP();
       }
     } catch (err) {
       notifyError($f7, errorMessage(err, ApiError, 'Failed to load client data'));
