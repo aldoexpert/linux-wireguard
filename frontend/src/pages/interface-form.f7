@@ -154,7 +154,7 @@
 </template>
 <script>
 import api, { ApiError } from '../js/api.js';
-import { notifySuccess, notifyError, errorMessage } from '../js/notify.js';
+import { notifySuccess, notifyWarning, notifyError, errorMessage } from '../js/notify.js';
 
 export default (props, { $f7, $update }) => {
   const id = props.id || null;
@@ -277,8 +277,13 @@ export default (props, { $f7, $update }) => {
     applying = true;
     $update();
     try {
-      await api.post('/wireguard/interfaces/applyconfig', { id });
-      notifySuccess($f7, 'Interface configuration applied successfully.');
+      const res = await api.post('/wireguard/interfaces/applyconfig', { id });
+      const text = res.message || 'Interface configuration applied successfully.';
+      if (res.data && res.data.synced === false) {
+        notifyWarning($f7, text);
+      } else {
+        notifySuccess($f7, text);
+      }
     } catch (err) {
       notifyError($f7, errorMessage(err, ApiError, 'Failed to apply the configuration'));
     } finally {

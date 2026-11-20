@@ -325,7 +325,7 @@ func (c *InterfacesController) ApplyConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	core.Success(w, "Interface configuration applied successfully", nil)
+	core.Success(w, applySuccessMessage(linuxServerSettings), map[string]bool{"synced": linuxServerSettings.Enabled})
 }
 
 // ApplyAll applies every interface in one call.
@@ -358,5 +358,17 @@ func (c *InterfacesController) ApplyAll(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	core.Success(w, "All interfaces applied successfully", nil)
+	core.Success(w, applySuccessMessage(linuxServerSettings), map[string]bool{"synced": linuxServerSettings.Enabled})
+}
+
+// applySuccessMessage makes it explicit whether applying actually reached
+// a remote server or only wrote this app's own local config -- the two
+// look identical from the caller's side (both return success), and a
+// user who only configured Linux Server Integration on some of their
+// interfaces/servers has mistaken the latter for the former in practice.
+func applySuccessMessage(linuxServerSettings model.LinuxServerSettings) string {
+	if linuxServerSettings.Enabled {
+		return "Configuration applied and synced to the Linux server successfully"
+	}
+	return "Configuration applied locally only -- Linux Server Integration is disabled, so no remote server was updated. Enable it under WireGuard → Linux Server Integration if this should also push to a remote server over SSH."
 }
