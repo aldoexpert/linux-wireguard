@@ -354,9 +354,10 @@ sudo chmod 600 /home/wgmanager/.ssh/authorized_keys
 
 # grant passwordless sudo for exactly the commands this integration runs --
 # never blanket root access. Adjust the binary paths below if `which mkdir
-# tee chmod systemctl wg true` reports different ones on your distro:
+# tee chmod systemctl wg wg-quick ip true` reports different ones on your
+# distro:
 sudo tee /etc/sudoers.d/wgmanager-wireguard > /dev/null <<'EOF'
-wgmanager ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/wireguard, /usr/bin/tee /etc/wireguard/*, /usr/bin/chmod 600 /etc/wireguard/*, /usr/bin/mkdir -p /etc/systemd/system/wg-quick@*.service.d, /usr/bin/tee /etc/systemd/system/wg-quick@*.service.d/*, /usr/bin/systemctl daemon-reload, /usr/bin/systemctl enable wg-quick@*, /usr/bin/systemctl restart wg-quick@*, /usr/bin/wg show * dump, /usr/bin/true
+wgmanager ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/wireguard, /usr/bin/tee /etc/wireguard/*, /usr/bin/chmod 600 /etc/wireguard/*, /usr/bin/mkdir -p /etc/systemd/system/wg-quick@*.service.d, /usr/bin/tee /etc/systemd/system/wg-quick@*.service.d/*, /usr/bin/systemctl daemon-reload, /usr/bin/systemctl enable wg-quick@*, /usr/bin/systemctl restart wg-quick@*, /usr/bin/systemctl reset-failed wg-quick@*, /usr/bin/wg show * dump, /usr/bin/wg syncconf *, /usr/bin/wg-quick strip *, /usr/sbin/ip link show *, /usr/bin/true
 EOF
 sudo visudo -c   # verify the file before relying on it
 ```

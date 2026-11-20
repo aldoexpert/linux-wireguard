@@ -70,5 +70,11 @@ project, which this one was forked from), a wg-quick interface has no
 incremental "add one peer" command or per-peer comment field to tag entries
 with, so `ApplySync` doesn't diff individual peers -- it renders and pushes
 the *complete* desired config for the interface (the same content written
-locally, see `library.RenderWireGuardServerConfig`), then restarts the
-`wg-quick@<ifName>` systemd unit so the change takes effect atomically.
+locally, see `library.RenderWireGuardServerConfig`). If the device is
+already up (checked via `ip link show`, not the systemd unit's own state --
+see the package doc comment for why), it's reloaded live with
+`wg syncconf` instead of a full `systemctl restart`: a restart's stop phase
+runs PreDown first, and a PreDown failure (seen in production with a
+Docker-chain iptables rule) leaves the device up but the unit "failed",
+after which every subsequent restart's start phase fails with
+`` `wg0' already exists `` forever, never actually applying the new config.

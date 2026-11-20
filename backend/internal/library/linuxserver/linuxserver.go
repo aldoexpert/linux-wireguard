@@ -18,12 +18,23 @@
 // no incremental "add this one peer" command and no per-peer comment
 // field to tag entries with -- the whole interface is defined by one
 // config file. So instead of diffing individual peers, ApplySync always
-// renders and pushes the *complete* desired config for the interface, then
-// restarts the systemd unit to apply it atomically. That is simpler and
-// no less safe here: wg-quick already treats a config reload as
-// replacing the full peer set, so there is no risk of leaving behind a
-// peer this app didn't create (there's nothing else on this interface to
-// begin with, by convention) or missing an update to one it did.
+// renders and pushes the *complete* desired config for the interface.
+//
+// How that gets applied to the live device depends on whether it already
+// exists (checked via `ip link show`, not systemd's unit state -- a unit
+// can be stuck "failed" from a previous bad restart while the device
+// itself is still up and passing traffic, which is exactly the case this
+// matters for): if it does, `wg syncconf` reloads it live, with no
+// PreDown/PostUp re-run and no peer disconnects. A full
+// `systemctl restart` was tried here first, but that runs the interface's
+// PreDown before PostUp -- and if PreDown fails (observed in production:
+// an iptables rule referencing Docker's DOCKER-USER chain failing to
+// delete because the chain state had already changed), wg-quick aborts
+// before reaching `ip link delete`, so the device survives the "stop" but
+// the subsequent "start" then fails with "wg0' already exists" and keeps
+// failing that way on every later apply -- never reapplying the new
+// config, yet never dropping the tunnel either. Reusing an already-up
+// device instead of tearing it down avoids that failure mode entirely.
 package linuxserver
 
 import (
@@ -171,7 +182,28 @@ func ApplySync(settings model.LinuxServerSettings, iface model.WgInterface, cont
 	fmt.Fprintf(&script, "sudo systemctl daemon-reload\n")
 
 	fmt.Fprintf(&script, "sudo systemctl enable %s\n", shellQuote(unit))
-	fmt.Fprintf(&script, "sudo systemctl restart %s\n", shellQuote(unit))
+
+	// If the device is already up, reload it live instead of restarting
+	// the unit -- see the package doc comment for why a full restart
+	// (PreDown then PostUp) is unsafe to rely on here. `ip link show` is
+	// checked directly rather than the unit's systemd state, since a unit
+	// can be stuck "failed" from a previous bad restart while the device
+	// itself is still up.
+	//
+	// The stripped config is written to a temp file rather than piped via
+	// `<(...)` process substitution: that needs bash specifically (not
+	// POSIX sh), and more importantly a sudoers NOPASSWD rule for
+	// "bash -c <arbitrary string>" can't be scoped tightly -- it's
+	// effectively unrestricted shell access. A plain pipe between two
+	// fixed, narrowly-scoped sudo commands avoids both problems.
+	syncconfTmpPath := fmt.Sprintf("/etc/wireguard/.%s.syncconf.tmp", ifName)
+	fmt.Fprintf(&script, "if ip link show %s > /dev/null 2>&1; then\n", shellQuote(ifName))
+	fmt.Fprintf(&script, "  sudo systemctl reset-failed %s 2>/dev/null || true\n", shellQuote(unit))
+	fmt.Fprintf(&script, "  sudo wg-quick strip %s | sudo tee %s > /dev/null\n", shellQuote(ifName), shellQuote(syncconfTmpPath))
+	fmt.Fprintf(&script, "  sudo wg syncconf %s %s\n", shellQuote(ifName), shellQuote(syncconfTmpPath))
+	fmt.Fprintf(&script, "else\n")
+	fmt.Fprintf(&script, "  sudo systemctl restart %s\n", shellQuote(unit))
+	fmt.Fprintf(&script, "fi\n")
 
 	_, err = run(client, script.String())
 	return err
