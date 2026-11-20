@@ -149,6 +149,8 @@ func ApplySync(settings model.LinuxServerSettings, iface model.WgInterface, cont
 
 	remotePath := fmt.Sprintf("/etc/wireguard/%s.conf", ifName)
 	unit := fmt.Sprintf("wg-quick@%s", ifName)
+	overrideDir := fmt.Sprintf("/etc/systemd/system/%s.service.d", unit)
+	overridePath := overrideDir + "/linux-wireguard-ordering.conf"
 
 	// The heredoc delimiter is quoted ('EOF') so the shell does zero
 	// expansion on the config content in between -- none of its $, `, or
@@ -157,6 +159,17 @@ func ApplySync(settings model.LinuxServerSettings, iface model.WgInterface, cont
 	fmt.Fprintf(&script, "sudo mkdir -p /etc/wireguard\n")
 	fmt.Fprintf(&script, "sudo tee %s > /dev/null <<'LXWG_CONF_EOF'\n%s\nLXWG_CONF_EOF\n", shellQuote(remotePath), content)
 	fmt.Fprintf(&script, "sudo chmod 600 %s\n", shellQuote(remotePath))
+
+	// A PostUp/PreDown script that touches Docker's DOCKER-USER chain (a
+	// common pattern on a host that also runs containers) fails this unit
+	// at boot if wg-quick starts before Docker does -- systemd gives no
+	// ordering guarantee between unrelated units by default. This drop-in
+	// is harmless even without Docker installed: "After"/"Wants" on a unit
+	// that doesn't exist is simply a no-op, never an error or a hang.
+	fmt.Fprintf(&script, "sudo mkdir -p %s\n", shellQuote(overrideDir))
+	fmt.Fprintf(&script, "sudo tee %s > /dev/null <<'LXWG_OVERRIDE_EOF'\n[Unit]\nAfter=docker.service\nWants=docker.service\nLXWG_OVERRIDE_EOF\n", shellQuote(overridePath))
+	fmt.Fprintf(&script, "sudo systemctl daemon-reload\n")
+
 	fmt.Fprintf(&script, "sudo systemctl enable %s\n", shellQuote(unit))
 	fmt.Fprintf(&script, "sudo systemctl restart %s\n", shellQuote(unit))
 

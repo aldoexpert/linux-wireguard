@@ -356,7 +356,7 @@ sudo chmod 600 /home/wgmanager/.ssh/authorized_keys
 # never blanket root access. Adjust the binary paths below if `which mkdir
 # tee chmod systemctl wg true` reports different ones on your distro:
 sudo tee /etc/sudoers.d/wgmanager-wireguard > /dev/null <<'EOF'
-wgmanager ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/wireguard, /usr/bin/tee /etc/wireguard/*, /usr/bin/chmod 600 /etc/wireguard/*, /usr/bin/systemctl enable wg-quick@*, /usr/bin/systemctl restart wg-quick@*, /usr/bin/wg show * dump, /usr/bin/true
+wgmanager ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/wireguard, /usr/bin/tee /etc/wireguard/*, /usr/bin/chmod 600 /etc/wireguard/*, /usr/bin/mkdir -p /etc/systemd/system/wg-quick@*.service.d, /usr/bin/tee /etc/systemd/system/wg-quick@*.service.d/*, /usr/bin/systemctl daemon-reload, /usr/bin/systemctl enable wg-quick@*, /usr/bin/systemctl restart wg-quick@*, /usr/bin/wg show * dump, /usr/bin/true
 EOF
 sudo visudo -c   # verify the file before relying on it
 ```
@@ -381,6 +381,36 @@ save. The next "Apply Configuration" on the Server page syncs to that
 server. The WireGuard interface name pushed there comes from each
 interface's own settings on the Interfaces page (admin only), not from this
 form -- see [Overview & Architecture](#overview--architecture).
+
+### Running this app on the same box as the WireGuard server
+
+If you run this app's own container on the same Linux server that will
+actually run `wg-quick`, point the Linux Server Integration's Host/IP at
+that same server (its real address, or an address this app can SSH to --
+not `127.0.0.1`/`localhost` *inside the container*, since the container has
+no SSH server of its own; point at the host instead). This makes Apply
+Configuration push the config straight to `/etc/wireguard/<ifName>.conf` on
+the host over SSH and restart its `wg-quick@<ifName>` service, so there is
+no second, out-of-sync copy of the config to track by hand -- the app's own
+`/app/data/wg0.conf` (inside its Docker volume) is only its local working
+copy, never what `wg-quick` on the host actually reads.
+
+### Known gotchas
+
+- **AllowedIPs is a routing filter on both ends, not just a permission
+  list.** If a client's `AllowedIPs` doesn't include a private subnet it
+  needs to reach through the tunnel, traffic to that subnet silently
+  bypasses the tunnel instead of erroring -- the UI warns about this when
+  `AllowedIPs` isn't the full-tunnel default (`0.0.0.0/0`).
+- **Don't reference Docker's `DOCKER-USER` chain in PostUp/PreDown.**
+  `wg-quick@<ifName>.service` has no ordering guarantee relative to
+  `docker.service`, so if it starts first, that chain doesn't exist yet and
+  the whole unit fails. Plain `FORWARD`/`MASQUERADE` rules (without
+  `DOCKER-USER`) work the same without that race, and the UI warns if it
+  detects that chain name in either field. As of this integration, Apply
+  Configuration also pushes a systemd drop-in ordering `wg-quick@<ifName>`
+  after `docker.service` as a second line of defense -- harmless even on a
+  server with no Docker installed.
 
 ### If the client is itself a Mikrotik router
 
